@@ -1,2 +1,2 @@
 # DB_Driver
-Data Base PHP Diver
+Data Base PHP Driver
