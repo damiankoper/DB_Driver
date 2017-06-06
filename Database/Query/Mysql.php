@@ -10,6 +10,7 @@ class Mysql extends \Database\Base
     protected $_offset;
     protected $_order;
     protected $_direction;
+    protected $_like;
     protected $_join = array();
     protected $_where = array();
 
@@ -46,8 +47,11 @@ class Mysql extends \Database\Base
         }
         return $this;
     }
-    public function join($join, $on, $fields = array())
+    public function join($join, $on, $fields = array(), $type = "INNER")
     {
+        if(\array_search($type,array("INNER","OUTER","LEFT","RIGHT"))===false){
+            throw new \Exception("Join not valid");
+        }
         if (empty($join)) {
             throw new \Exception("Join not valid");
         }
@@ -55,7 +59,7 @@ class Mysql extends \Database\Base
             throw new \Exception("Join not valid");
         }
         $this->_fields += array($join => $fields);
-        $this->_join[] = "JOIN {$join} ON {$on}";
+        $this->_join[] = "{$type} JOIN {$join} ON {$on}";
         return $this;
     }
     public function limit($limit, $page = 1)
@@ -69,13 +73,14 @@ class Mysql extends \Database\Base
     }
     public function order($order, $direction = "ASC")
     {
-        if (empty($limit)) {
+        if (empty($order)) {
             throw new \Exception("Order not valid");
         }
         $this->_order = $order;
         $this->_direction = $direction;
         return $this;
     }
+   // public function
     public function where()
     {
         $arguments = \func_get_args();
@@ -93,7 +98,7 @@ class Mysql extends \Database\Base
     {
         $fields = array();
         $where = $limit = $order = $join = "";
-        $template = "SELECT %s FROM %s %s %s %s %s";
+        $template = "SELECT %s FROM `%s` %s %s %s %s";
 
         foreach ($this->_fields as $table => $_fields) {
             foreach ($_fields as $field => $alias) {
@@ -202,7 +207,7 @@ class Mysql extends \Database\Base
             throw new \Exception("SQL error");
         }
         if ($isInsert) {
-            return $this->_connector->lastInsertId;
+            return $this->_connector->getLastInsertId();
         }
         return 0;
     }
@@ -213,7 +218,7 @@ class Mysql extends \Database\Base
         if ($result===false) {
             throw new \Exception("SQL error");
         }
-        return $this->_connector->affected_rows;
+        return $this->_connector->getAffectedRows();
     }
     public function first()
     {
