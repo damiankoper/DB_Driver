@@ -142,6 +142,15 @@ Test::add(function () use ($options) {
     $database = new Database\Database($options);
     $database = $database->init()->connect();
     $rows = $database->query()
+        ->from("select_test")
+        ->like("first_name", "%en")
+        ->all();
+    return sizeof($rows)===2;
+}, "Like simple", "DB");
+Test::add(function () use ($options) {
+    $database = new Database\Database($options);
+    $database = $database->init()->connect();
+    $rows = $database->query()
         ->from("select_test", array("id"=>"ajdi"))
         ->all();
     return sizeof($rows)===10 && isset($rows[0]["ajdi"]) ;
@@ -195,4 +204,29 @@ Test::add(function () use ($options) {
     return sizeof($rows)===2;
 }, "Join Inner", "DB");
 
+Test::add(function () use ($options) {
+    $database = new Database\Database($options);
+    $database = $database->init()->connect();
+    $rows = $database->query()
+        ->from("select_test",array("gender"=>"Gender","COUNT(*)"=>"Number"))
+        ->groupBy("gender")
+        ->all();
+    return sizeof($rows)===2;
+}, "Group By", "DB");
+
+Test::add(function () use ($options) {
+    $database = new Database\Database($options);
+    $database = $database->init()->connect();
+    $rows = $database->query()
+        ->from("select_test",array("gender"=>"Gender","COUNT(*)"=>"Number"))
+        ->groupBy("gender")
+        ->having("COUNT(*) > ?", 4)
+        ->all();
+    return sizeof($rows)===1;
+}, "Group By & Having", "DB");
+
 Test::run();
+
+
+//TODO
+//fix regex on nested functions inside another

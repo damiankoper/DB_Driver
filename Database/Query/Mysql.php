@@ -10,7 +10,8 @@ class Mysql extends \Database\Base
     protected $_offset;
     protected $_order;
     protected $_direction;
-    protected $_like;
+    protected $_groupBy = array();
+    protected $_having;
     protected $_join = array();
     protected $_where = array();
 
@@ -49,7 +50,7 @@ class Mysql extends \Database\Base
     }
     public function join($join, $on, $fields = array(), $type = "INNER")
     {
-        if(\array_search($type,array("INNER","OUTER","LEFT","RIGHT"))===false){
+        if (\array_search($type, array("INNER","OUTER","LEFT","RIGHT"))===false) {
             throw new \Exception("Join not valid");
         }
         if (empty($join)) {
@@ -80,7 +81,33 @@ class Mysql extends \Database\Base
         $this->_direction = $direction;
         return $this;
     }
-   // public function
+    public function groupBy($groupBy)
+    {
+         if (empty($groupBy)) {
+            throw new \Exception("GroupBy not valid");
+        }
+        if (is_array($groupBy)) {
+            foreach ($groupBy as $value) {
+                $this->_groupBy[]=$value;
+            }
+        } else {
+            $this->_groupBy[]=$groupBy;
+        }
+        return $this;
+    }
+    public function having($having)
+    {
+        $arguments = \func_get_args();
+        if (sizeof($arguments)<1) {
+            throw new \Exception("Having not valid");
+        }
+        $arguments[0] = \preg_replace("#\?#", "%s", $arguments[0]);
+        foreach (\array_slice($arguments, 1, null, true) as $i => $parameter) {
+            $arguments[$i] = $this->_quote($arguments[$i]);
+        }
+        $this->_having[] = \call_user_func_array("sprintf", $arguments);
+        return $this;
+    }
     public function where()
     {
         $arguments = \func_get_args();
@@ -94,16 +121,25 @@ class Mysql extends \Database\Base
         $this->_where[] = \call_user_func_array("sprintf", $arguments);
         return $this;
     }
+    public function like($like, $pattern)
+    {
+        if (empty($like)||empty($pattern)) {
+            throw new \Exception("Like not valid");
+        }
+        $pattern = $this->_quote($pattern);
+        $this->_where[] = "{$like} LIKE {$pattern}";
+        return $this;
+    }
     protected function _buildSelect()
     {
         $fields = array();
-        $where = $limit = $order = $join = "";
-        $template = "SELECT %s FROM `%s` %s %s %s %s";
+        $where=$groupBy=$having = $limit = $order = $join = "";
+        $template = "SELECT %s FROM `%s` %s %s %s %s %s %s";
 
         foreach ($this->_fields as $table => $_fields) {
             foreach ($_fields as $field => $alias) {
                 if (\is_string($field)) {
-                    $fields[]="{$field} AS {$alias}";
+                    $fields[]="{$field} AS '{$alias}'";
                 } else {
                     $fields[]=$alias;
                 }
@@ -120,6 +156,16 @@ class Mysql extends \Database\Base
             $joined = \implode(" AND ", $_where);
             $where = "WHERE {$joined}";
         }
+         $_groupBy = $this->_groupBy;
+        if (!empty($_groupBy)) {
+            $joined = \implode(", ", $_groupBy);
+            $groupBy = "GROUP BY {$joined}";
+        }
+         $_having = $this->_having;
+        if (!empty($_having)) {
+            $joined = \implode(" AND ", $_having);
+            $having = "HAVING {$joined}";
+        }
         $_order = $this->_order;
         if (!empty($_order)) {
             $_direction = $this->_direction;
@@ -135,7 +181,7 @@ class Mysql extends \Database\Base
             }
         }
 
-        return sprintf($template, $fields, $this->_from, $join, $where, $order, $limit);
+        return sprintf($template, $fields, $this->_from, $join, $where, $groupBy, $having, $order, $limit);
     }
 
     protected function _buildInsert($data)
@@ -236,7 +282,8 @@ class Mysql extends \Database\Base
         }
         return $first;
     }
-    public function count(){
+    public function count()
+    {
         $limit = $this->_limit;
         $offset = $this->_offset;
         $fields = $this->_fields;
@@ -254,15 +301,16 @@ class Mysql extends \Database\Base
         }
         return $row["rows"];
     }
-    public function all(){
+    public function all()
+    {
         $sql = $this->_buildSelect();
         $result = $this->_connector->execute($sql);
-        if($result===false){
+        if ($result===false) {
             $error = $this->_connector->getLastError();
             throw new \Exception("SQL error: {$error}");
         }
         $rows = array();
-        for($i=0;$i<$result->num_rows;$i++){
+        for ($i=0;$i<$result->num_rows;$i++) {
             $rows[]=$result->fetch_array(\MYSQLI_ASSOC);
         }
         return $rows;
